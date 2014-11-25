@@ -1,74 +1,57 @@
 ﻿using System;
-using System.Globalization;
-using OsmMapControlLibrary.TileProviders;
 using Windows.Foundation;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Media.Imaging;
+using OsmMapControlLibrary.TileProviders;
 
 namespace OsmMapControlLibrary
 {
     /// <summary>
-    /// This class stores information about a tile
+    ///     This class stores information about a tile
     /// </summary>
     public class TileInfo
     {
         /// <summary>
-        /// This event is called when loading has been finished
-        /// </summary>
-        public event EventHandler LoadingFinished;
-
-        /// <summary>
-        /// Stores the maximum allowed zoomvalue
+        ///     Stores the maximum allowed zoomvalue
         /// </summary>
         public const int MaxZoom = 16;
 
         /// <summary>
-        /// Gets or sets the x-coordinate of the tile
+        ///     Gets or sets the x-coordinate of the tile
         /// </summary>
-        public int TileX
-        {
-            get;
-            set;
-        }
+        public int TileX { get; set; }
 
         /// <summary>
-        /// Gets or sets the y-coordinate of the tile
+        ///     Gets or sets the y-coordinate of the tile
         /// </summary>
-        public int TileY
-        {
-            get;
-            set;
-        }
+        public int TileY { get; set; }
 
         /// <summary>
-        /// Gets or sets the zoom of the tile
+        ///     Gets or sets the zoom of the tile
         /// </summary>
-        public int Zoom
-        {
-            get;
-            set;
-        }
+        public int Zoom { get; set; }
 
         /// <summary>
-        /// Gets or sets the image of the tile
+        ///     Gets or sets the image of the tile
         /// </summary>
-        public Image TileImage
-        {
-            get;
-            set;
-        }
+        public Image TileImage { get; set; }
 
         /// <summary>
-        /// Loads the image by tileposition
+        ///     This event is called when loading has been finished
+        /// </summary>
+        public event EventHandler LoadingFinished;
+
+        /// <summary>
+        ///     Loads the image by tileposition
         /// </summary>
         public void LoadImage(ITileProvider tileProvider)
         {
-            var tileX = this.TileX;
-            var tileY = this.TileY;
-            var localZoom = (int)Math.Pow(2, this.Zoom);
-            var currentZoom = this.Zoom;
+            int tileX = TileX;
+            int tileY = TileY;
+            var localZoom = (int) Math.Pow(2, Zoom);
+            int currentZoom = Zoom;
 
             while (currentZoom > MaxZoom)
             {
@@ -103,7 +86,7 @@ namespace OsmMapControlLibrary
 
             TileImage = image;
 
-            var uri = tileProvider.GetTileUri(Zoom, tileX, tileY);
+            Uri uri = tileProvider.GetTileUri(Zoom, tileX, tileY);
             var source = new BitmapImage(uri);
 
             source.ImageOpened += SourceOnImageOpened;
@@ -113,7 +96,7 @@ namespace OsmMapControlLibrary
         private void SourceOnImageOpened(object sender, RoutedEventArgs routedEventArgs)
         {
             // Detach event handler immediately
-            var bmi = (BitmapImage)sender;
+            var bmi = (BitmapImage) sender;
             bmi.ImageOpened -= SourceOnImageOpened;
 
             var animation = new DoubleAnimation();
@@ -130,22 +113,22 @@ namespace OsmMapControlLibrary
             Storyboard.SetTargetProperty(storyboard, "Image.Opacity");
             storyboard.Begin();
 
-            if (this.LoadingFinished != null)
+            if (LoadingFinished != null)
             {
-                this.LoadingFinished(this, EventArgs.Empty);
+                LoadingFinished(this, EventArgs.Empty);
             }
         }
 
         /// <summary>
-        /// Gets the coordinate of the image
+        ///     Gets the coordinate of the image
         /// </summary>
         /// <returns>Position of the image</returns>
         public Point GetCoordinates(double zoom)
         {
-            var divisor = zoom; //  Math.Pow(2, this.Zoom);
+            double divisor = zoom; //  Math.Pow(2, this.Zoom);
             return new Point(
-                (this.TileX / divisor),
-                (this.TileY / divisor));
+                (TileX/divisor),
+                (TileY/divisor));
         }
 
         public override bool Equals(object obj)
@@ -156,15 +139,14 @@ namespace OsmMapControlLibrary
                 return false;
             }
 
-            return this.TileX == item.TileX 
-                && this.TileY == item.TileY 
-                && this.Zoom == item.Zoom;
+            return TileX == item.TileX
+                   && TileY == item.TileY
+                   && Zoom == item.Zoom;
         }
 
         public override int GetHashCode()
         {
-            return this.TileX.GetHashCode() ^ this.TileY.GetHashCode() ^ this.Zoom.GetHashCode();
+            return TileX.GetHashCode() ^ TileY.GetHashCode() ^ Zoom.GetHashCode();
         }
-
     }
 }

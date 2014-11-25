@@ -2,127 +2,118 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OsmMapControlLibrary.TileProviders;
+using Windows.ApplicationModel;
 using Windows.Foundation;
 using Windows.System;
+using Windows.UI.Input;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Animation;
+using OsmMapControlLibrary.TileProviders;
 
 namespace OsmMapControlLibrary
 {
     public class OsmMapControl : Canvas
     {
         /// <summary>
-        /// Initializes a new instance of the MainPage class.
+        ///     Base zoom to be used to make the map bigger
+        /// </summary>
+        public const double BaseZoom = 1;
+
+        private readonly ITileProvider _tileProvider = new OsmTileProvider();
+
+        /// <summary>
+        ///     Stores a list of all tiles, that shall be loading or have been
+        ///     Loading
+        /// </summary>
+        private readonly List<TileInfo> _addedTiles = new List<TileInfo>();
+
+        /// <summary>
+        ///     Stores a list of all tiles, that have not been loaded yet
+        /// </summary>
+        private readonly List<TileInfo> _notLoadedTiles = new List<TileInfo>();
+
+        /// Defines the energymanager, storing the power available for scrolling
+        private readonly ScrollEnergyManager _scrollEnergyManager = new ScrollEnergyManager();
+
+        protected int TilesRetrieved = 0;
+
+        /// <summary>
+        ///     Gets or sets the current zoom level
+        /// </summary>
+        private int _currentZoomLevel;
+
+        /// <summary>
+        ///     Gets or sets the current zoom by GUI
+        /// </summary>
+        private double _targetZoom;
+
+        /// <summary>
+        ///     Number of images, that are currently loading
+        /// </summary>
+        private int _currentlyLoading;
+
+        /// <summary>
+        ///     Stores whether the mouse is currently down
+        /// </summary>
+        private bool _isMouseDown;
+
+        /// <summary>
+        ///     Stores the value when the datetime have been clicked last
+        /// </summary>
+        private DateTime _lastClick = DateTime.MinValue;
+
+        private Point? _lastPosition;
+
+        /// <summary>
+        ///     Initializes a new instance of the MainPage class.
         /// </summary>
         public OsmMapControl()
         {
-            this.CurrentPosition = new Point(0.476317347467935, 0.669774812152535);
-            this.TargetPosition = new Point(0.476317347467935, 0.669774812152535);
-            this.CurrentSpeed = new Point(0.00, 0.00);
-            this.MoveToPosition = null;
-            this.CurrentZoomLevel = 9;
-            this.CurrentZoom = 250000;
-            this.TargetZoom = 300000;
+            CurrentPosition = new Point(0.476317347467935, 0.669774812152535);
+            TargetPosition = new Point(0.476317347467935, 0.669774812152535);
+            CurrentSpeed = new Point(0.00, 0.00);
+            MoveToPosition = null;
+            CurrentZoomLevel = 9;
+            CurrentZoom = 250000;
+            TargetZoom = 300000;
 
             // do not show any rendering in design mode
-            if (!Windows.ApplicationModel.DesignMode.DesignModeEnabled)
+            if (!DesignMode.DesignModeEnabled)
             {
                 CompositionTarget.Rendering += CompositionTarget_Rendering;
 
-                this.PointerPressed += Map_PointerPressed;
-                this.PointerReleased += Map_PointerReleased;
-                this.PointerMoved += Map_PointerMoved;
-                this.PointerWheelChanged += Map_PointerWheelChanged;
-                this.PointerExited += Map_PointerExited;
+                PointerPressed += Map_PointerPressed;
+                PointerReleased += Map_PointerReleased;
+                PointerMoved += Map_PointerMoved;
+                PointerWheelChanged += Map_PointerWheelChanged;
+                PointerExited += Map_PointerExited;
 
                 // this.KeyDown += Map_KeyDown;
                 // this.AddHandler(KeyDownEvent, new KeyEventHandler(Map_KeyDown), true);
 
-                this.Loaded += OnLoaded;
-                this.SizeChanged += OnSizeChanged;
+                Loaded += OnLoaded;
+                SizeChanged += OnSizeChanged;
             }
         }
 
-        // TODO: not working as expected, thus not being used at the moment
-        private void Map_KeyDown(object sender, KeyRoutedEventArgs e)
-        {
-            if (e.Key == VirtualKey.Add)
-            {
-                this.TargetZoom *= 2;
-                this.UpdateAllTiles();
-            }
-            else if (e.Key == VirtualKey.Subtract)
-            {
-                this.TargetZoom /= 2;
-                this.UpdateAllTiles();
-            }
-        }
-
-        private void OnSizeChanged(object sender, SizeChangedEventArgs sizeChangedEventArgs)
-        {
-            ClipToBounds();
-        }
-
-        private void OnLoaded(object sender, RoutedEventArgs routedEventArgs)
-        {
-            ClipToBounds();
-        }
-
-        private void ClipToBounds()
-        {
-            this.Clip = new RectangleGeometry()
-                                {
-                                    Rect = new Rect(0, 0, this.ActualWidth, this.ActualHeight)
-                                };
-        }
+        /// <summary>
+        ///     Gets or sets the current position
+        /// </summary>
+        protected Point CurrentPosition { get; set; }
 
         /// <summary>
-        /// Base zoom to be used to make the map bigger
+        ///     Gets or sets the current position
         /// </summary>
-        public const double BaseZoom = 1;
+        protected Point CurrentSpeed { get; set; }
 
         /// <summary>
-        /// Number of images, that are currently loading
+        ///     Gets or sets the current zoom by GUI
         /// </summary>
-        private int currentlyLoading = 0;
+        protected double CurrentZoom { get; set; }
 
-        /// <summary>
-        /// Gets or sets the current position
-        /// </summary>
-        protected Point CurrentPosition
-        {
-            get;
-            set;
-        }
-
-        /// <summary>
-        /// Gets or sets the current position
-        /// </summary>
-        protected Point CurrentSpeed
-        {
-            get;
-            set;
-        }
-
-        /// <summary>
-        /// Gets or sets the current zoom by GUI
-        /// </summary>
-        protected double CurrentZoom
-        {
-            get;
-            set;
-        }
-
-        /// <summary>
-        /// Gets or sets the current zoom by GUI
-        /// </summary>
-        private double _targetZoom;
         protected double TargetZoom
         {
             get { return _targetZoom; }
@@ -144,30 +135,18 @@ namespace OsmMapControlLibrary
         }
 
         /// <summary>
-        /// Gets or sets the target position DURING the button
-        /// down of the left mouse button. If mouse button is 
-        /// released the position won't be regarded
+        ///     Gets or sets the target position DURING the button
+        ///     down of the left mouse button. If mouse button is
+        ///     released the position won't be regarded
         /// </summary>
-        protected Point TargetPosition
-        {
-            get;
-            set;
-        }
+        protected Point TargetPosition { get; set; }
 
         /// <summary>
-        /// Gets or sets the position to move to without
-        /// regarding any other speed or position argument
+        ///     Gets or sets the position to move to without
+        ///     regarding any other speed or position argument
         /// </summary>
-        protected Point? MoveToPosition
-        {
-            get;
-            set;
-        }
+        protected Point? MoveToPosition { get; set; }
 
-        /// <summary>
-        /// Gets or sets the current zoom level
-        /// </summary>
-        private int _currentZoomLevel;
         protected int CurrentZoomLevel
         {
             get { return _currentZoomLevel; }
@@ -188,36 +167,39 @@ namespace OsmMapControlLibrary
             }
         }
 
-        /// <summary>
-        /// Stores a list of all tiles, that shall be loading or have been 
-        /// Loading
-        /// </summary>
-        List<TileInfo> addedTiles = new List<TileInfo>();
+        protected bool SuspendRendering { get; set; }
 
-        /// <summary>
-        /// Stores a list of all tiles, that have not been loaded yet
-        /// </summary>
-        List<TileInfo> notLoadedTiles = new List<TileInfo>();
+        private void Map_KeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == VirtualKey.Add)
+            {
+                TargetZoom *= 2;
+                UpdateAllTiles();
+            }
+            else if (e.Key == VirtualKey.Subtract)
+            {
+                TargetZoom /= 2;
+                UpdateAllTiles();
+            }
+        }
 
-        protected int TilesRetrieved = 0;
+        private void OnSizeChanged(object sender, SizeChangedEventArgs sizeChangedEventArgs)
+        {
+            ClipToBounds();
+        }
 
-        /// <summary>
-        /// Stores the value when the datetime have been clicked last
-        /// </summary>
-        private DateTime lastClick = DateTime.MinValue;
+        private void OnLoaded(object sender, RoutedEventArgs routedEventArgs)
+        {
+            ClipToBounds();
+        }
 
-        /// <summary>
-        /// Stores whether the mouse is currently down
-        /// </summary>
-        private bool isMouseDown = false;
-
-        private Point? lastPosition = null;
-
-        /// Defines the energymanager, storing the power available for scrolling
-        private ScrollEnergyManager scrollEnergyManager = new ScrollEnergyManager();
-
-        // Defines the (currently hardcoded) tile provider
-        private ITileProvider TileProvider = new OsmTileProvider();
+        private void ClipToBounds()
+        {
+            Clip = new RectangleGeometry
+            {
+                Rect = new Rect(0, 0, ActualWidth, ActualHeight)
+            };
+        }
 
         private void CompositionTarget_Rendering(object sender, object o)
         {
@@ -225,16 +207,16 @@ namespace OsmMapControlLibrary
 
             // Debug.WriteLine("Rendering " + DateTime.Now.ToString());
 
-            this.scrollEnergyManager.Recharge();
+            _scrollEnergyManager.Recharge();
 
-            var change = false;
-            var ratio = (CurrentZoom / TargetZoom);
+            bool change = false;
+            double ratio = (CurrentZoom/TargetZoom);
 
             if (ratio < 0.98 || ratio > 1.02)
             {
                 //var diff = this.CurrentZoom - this.TargetZoom;
-                this.CurrentZoom /= Math.Pow(ratio, 1 / 10.0);
-                this.CurrentZoomLevel = ConvertZoomToZoomLevel(CurrentZoom);
+                CurrentZoom /= Math.Pow(ratio, 1/10.0);
+                CurrentZoomLevel = ConvertZoomToZoomLevel(CurrentZoom);
 
                 change = true;
             }
@@ -242,17 +224,17 @@ namespace OsmMapControlLibrary
             if (MoveToPosition.HasValue)
             {
                 // Cinematic movement
-                var posDiffX = this.CurrentPosition.X - this.MoveToPosition.Value.X;
-                var posDiffY = this.CurrentPosition.Y - this.MoveToPosition.Value.Y;
+                double posDiffX = CurrentPosition.X - MoveToPosition.Value.X;
+                double posDiffY = CurrentPosition.Y - MoveToPosition.Value.Y;
 
-                this.CurrentPosition = new Point(
-                    this.CurrentPosition.X - posDiffX * 0.15,
-                    this.CurrentPosition.Y - posDiffY * 0.15);
+                CurrentPosition = new Point(
+                    CurrentPosition.X - posDiffX*0.15,
+                    CurrentPosition.Y - posDiffY*0.15);
 
                 if (Math.Abs(posDiffX) + Math.Abs(posDiffY)
-                    < 1 / this.TargetZoom)
+                    < 1/TargetZoom)
                 {
-                    this.MoveToPosition = null;
+                    MoveToPosition = null;
                 }
 
                 change = true;
@@ -260,28 +242,28 @@ namespace OsmMapControlLibrary
             else
             {
                 // Cinematic movement
-                var posDiffX = 0.0;
-                var posDiffY = 0.0;
+                double posDiffX = 0.0;
+                double posDiffY = 0.0;
 
-                if (this.isMouseDown)
+                if (_isMouseDown)
                 {
-                    posDiffX = this.CurrentPosition.X - this.TargetPosition.X;
-                    posDiffY = this.CurrentPosition.Y - this.TargetPosition.Y;
+                    posDiffX = CurrentPosition.X - TargetPosition.X;
+                    posDiffY = CurrentPosition.Y - TargetPosition.Y;
                 }
 
-                var springFactor = 0.7;
-                var friction = 0.999;
-                this.CurrentSpeed = new Point(
-                    (this.CurrentSpeed.X * friction - posDiffX) * springFactor,
-                    (this.CurrentSpeed.Y * friction - posDiffY) * springFactor);
+                double springFactor = 0.7;
+                double friction = 0.999;
+                CurrentSpeed = new Point(
+                    (CurrentSpeed.X*friction - posDiffX)*springFactor,
+                    (CurrentSpeed.Y*friction - posDiffY)*springFactor);
 
-                if ((Math.Abs(this.CurrentSpeed.X) + Math.Abs(this.CurrentSpeed.Y))
-                    > 1 / this.TargetZoom)
+                if ((Math.Abs(CurrentSpeed.X) + Math.Abs(CurrentSpeed.Y))
+                    > 1/TargetZoom)
                 {
-                    var timeStep = 0.1;
-                    this.CurrentPosition = new Point(
-                        (this.CurrentPosition.X + this.CurrentSpeed.X * timeStep),
-                        (this.CurrentPosition.Y + this.CurrentSpeed.Y * timeStep));
+                    double timeStep = 0.1;
+                    CurrentPosition = new Point(
+                        (CurrentPosition.X + CurrentSpeed.X*timeStep),
+                        (CurrentPosition.Y + CurrentSpeed.Y*timeStep));
 
                     change = true;
                 }
@@ -289,24 +271,21 @@ namespace OsmMapControlLibrary
 
             if (change)
             {
-                this.UpdateAllTiles();
+                UpdateAllTiles();
             }
 
             // Check, if we can load a tile
-            if (this.currentlyLoading <= 3 && this.notLoadedTiles.Count > 0)
+            if (_currentlyLoading <= 3 && _notLoadedTiles.Count > 0)
             {
-                var notLoadedTile = this.notLoadedTiles.Last();
+                TileInfo notLoadedTile = _notLoadedTiles.Last();
 
-                notLoadedTile.LoadImage(TileProvider);
-                this.UpdateTile(notLoadedTile);
-                this.Children.Add(notLoadedTile.TileImage);
+                notLoadedTile.LoadImage(_tileProvider);
+                UpdateTile(notLoadedTile);
+                Children.Add(notLoadedTile.TileImage);
 
-                this.notLoadedTiles.Remove(notLoadedTile);
-                this.currentlyLoading++;
-                notLoadedTile.LoadingFinished += (x, y) =>
-                {
-                    this.currentlyLoading--;
-                };
+                _notLoadedTiles.Remove(notLoadedTile);
+                _currentlyLoading++;
+                notLoadedTile.LoadingFinished += (x, y) => { _currentlyLoading--; };
             }
         }
 
@@ -314,9 +293,9 @@ namespace OsmMapControlLibrary
         {
             // Convert upper left image of window to tile coordinates
             // this.CurrentZoom   
-            LoadAllTilesForZoomLevel(this.CurrentZoomLevel, true);
+            LoadAllTilesForZoomLevel(CurrentZoomLevel, true);
 
-            foreach (var tileInfo in addedTiles.Where(x => x.TileImage != null).ToList())
+            foreach (TileInfo tileInfo in _addedTiles.Where(x => x.TileImage != null).ToList())
             {
                 UpdateTile(tileInfo);
             }
@@ -324,34 +303,32 @@ namespace OsmMapControlLibrary
 
         private void UpdateTile(TileInfo tileInfo)
         {
-            if ((tileInfo.Zoom > (this.CurrentZoomLevel + 1))
-                || (tileInfo.Zoom < (this.CurrentZoomLevel - 2)))
+            if ((tileInfo.Zoom > (CurrentZoomLevel + 1))
+                || (tileInfo.Zoom < (CurrentZoomLevel - 2)))
             {
                 // Hide unused images
-                this.RemoveImage(tileInfo);
+                RemoveImage(tileInfo);
             }
 
-            var zoom = this.CurrentZoomLevel;
-            var localZoom = Math.Pow(2, zoom);
-            localZoom = Math.Pow(2, tileInfo.Zoom);
+            double localZoom = Math.Pow(2, tileInfo.Zoom);
 
-            var position = tileInfo.GetCoordinates(localZoom);
-            Canvas.SetLeft(
+            Point position = tileInfo.GetCoordinates(localZoom);
+            SetLeft(
                 tileInfo.TileImage,
-                (position.X + this.CurrentPosition.X)
-                    * this.CurrentZoom * BaseZoom
-                    + this.ActualWidth / 2);
-            Canvas.SetTop(
+                (position.X + CurrentPosition.X)
+                *CurrentZoom*BaseZoom
+                + ActualWidth/2);
+            SetTop(
                 tileInfo.TileImage,
-                (position.Y + this.CurrentPosition.Y)
-                    * this.CurrentZoom * BaseZoom
-                    + this.ActualHeight / 2);
-            tileInfo.TileImage.Width = (this.CurrentZoom / localZoom) + 0.5;
-            tileInfo.TileImage.Height = (this.CurrentZoom / localZoom) + 0.5;
+                (position.Y + CurrentPosition.Y)
+                *CurrentZoom*BaseZoom
+                + ActualHeight/2);
+            tileInfo.TileImage.Width = (CurrentZoom/localZoom) + 0.5;
+            tileInfo.TileImage.Height = (CurrentZoom/localZoom) + 0.5;
         }
 
         /// <summary>
-        /// Removes an image from tile list
+        ///     Removes an image from tile list
         /// </summary>
         /// <param name="tileInfo">Image to be removed</param>
         private void RemoveImage(TileInfo tileInfo)
@@ -369,14 +346,14 @@ namespace OsmMapControlLibrary
 
             storyboard.Completed += (x, y) =>
             {
-                this.Children.Remove(tileInfo.TileImage);
-                this.notLoadedTiles.Remove(tileInfo);
-                this.addedTiles.Remove(tileInfo);
+                Children.Remove(tileInfo.TileImage);
+                _notLoadedTiles.Remove(tileInfo);
+                _addedTiles.Remove(tileInfo);
             };
         }
 
         /// <summary>
-        /// Loads all tiles for a specific zoom level
+        ///     Loads all tiles for a specific zoom level
         /// </summary>
         /// <param name="requiredZoom">Required zoomlevel</param>
         /// <param name="visible">Flag whether the tiles are visible</param>
@@ -389,69 +366,68 @@ namespace OsmMapControlLibrary
             }
 
             var toLoadTiles = new List<TileInfo>();
-            for (var zoom = requiredZoom - 1; zoom <= requiredZoom; zoom++)
+            for (int zoom = requiredZoom - 1; zoom <= requiredZoom; zoom++)
             {
-                var localZoom = Math.Pow(2, zoom);
-                var left =
-                    ((-this.ActualWidth / 1.8 / this.CurrentZoom) -
-                    this.CurrentPosition.X) / BaseZoom;
-                var right =
-                    ((this.ActualWidth / 1.8 / this.CurrentZoom) -
-                    this.CurrentPosition.X) / BaseZoom;
-                var top =
-                    ((-this.ActualHeight / 1.8 / this.CurrentZoom) -
-                    this.CurrentPosition.Y) / BaseZoom;
-                var bottom =
-                    ((this.ActualHeight / 1.8 / this.CurrentZoom) -
-                    this.CurrentPosition.Y) / BaseZoom;
+                double localZoom = Math.Pow(2, zoom);
+                double left =
+                    ((-ActualWidth/1.8/CurrentZoom) -
+                     CurrentPosition.X)/BaseZoom;
+                double right =
+                    ((ActualWidth/1.8/CurrentZoom) -
+                     CurrentPosition.X)/BaseZoom;
+                double top =
+                    ((-ActualHeight/1.8/CurrentZoom) -
+                     CurrentPosition.Y)/BaseZoom;
+                double bottom =
+                    ((ActualHeight/1.8/CurrentZoom) -
+                     CurrentPosition.Y)/BaseZoom;
 
                 // Loads all images
-                for (var x = (int)Math.Floor(left * localZoom);
-                    x <= (int)Math.Ceiling(right * localZoom);
+                for (var x = (int) Math.Floor(left*localZoom);
+                    x <= (int) Math.Ceiling(right*localZoom);
                     x++)
                 {
-                    for (var y = (int)Math.Floor(top * localZoom);
-                        y <= (int)Math.Ceiling(bottom * localZoom);
+                    for (var y = (int) Math.Floor(top*localZoom);
+                        y <= (int) Math.Ceiling(bottom*localZoom);
                         y++)
                     {
-                        toLoadTiles.Add(this.ShowTile(x, y, requiredZoom));
+                        toLoadTiles.Add(ShowTile(x, y, requiredZoom));
                     }
                 }
             }
 
             // Check for all tiles, that are in notLoadedList and not in loadedTiles
-            foreach (var tile in this.notLoadedTiles.ToList())
+            foreach (TileInfo tile in _notLoadedTiles.ToList())
             {
                 if (!toLoadTiles.Contains(tile))
                 {
-                    this.notLoadedTiles.Remove(tile);
-                    this.addedTiles.Remove(tile);
+                    _notLoadedTiles.Remove(tile);
+                    _addedTiles.Remove(tile);
                 }
             }
         }
 
         /// <summary>
-        /// Shows a specific tile
+        ///     Shows a specific tile
         /// </summary>
         /// <param name="tileX">X-Coordinate of tile</param>
         /// <param name="tileY">Y-Coordinate of tile</param>
         /// <param name="zoom">Zoomlevel of tile</param>
-        /// <param name="visible">Flag whether tiles are visible</param>
         protected TileInfo ShowTile(int tileX, int tileY, int zoom)
         {
             // Shows if shown tile is in loadedtiles
-            var found = this.addedTiles.FirstOrDefault(
+            TileInfo found = _addedTiles.FirstOrDefault(
                 x => x.TileX == tileX && x.TileY == tileY && x.Zoom == zoom);
 
             if (found != null)
             {
                 if (found.TileImage != null)
                 {
-                    if (zoom <= this.CurrentZoom &&
-                        found.TileImage.Visibility == Windows.UI.Xaml.Visibility.Collapsed)
+                    if (zoom <= CurrentZoom &&
+                        found.TileImage.Visibility == Visibility.Collapsed)
                     {
                         // Switch visibility flag
-                        found.TileImage.Visibility = Windows.UI.Xaml.Visibility.Visible;
+                        found.TileImage.Visibility = Visibility.Visible;
                     }
                 }
 
@@ -465,102 +441,102 @@ namespace OsmMapControlLibrary
             tileInfo.TileY = tileY;
             tileInfo.Zoom = zoom;
 
-            this.addedTiles.Add(tileInfo);
-            this.notLoadedTiles.Add(tileInfo);
-            this.TilesRetrieved++;
+            _addedTiles.Add(tileInfo);
+            _notLoadedTiles.Add(tileInfo);
+            TilesRetrieved++;
 
             return tileInfo;
         }
 
         private void Map_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
         {
-            var delta = e.GetCurrentPoint(this).Properties.MouseWheelDelta;
+            int delta = e.GetCurrentPoint(this).Properties.MouseWheelDelta;
 
-            var factor = Math.Exp(this.scrollEnergyManager.RequestEnergy(((double)delta) / 120));
-            
+            double factor = Math.Exp(_scrollEnergyManager.RequestEnergy(((double) delta)/120));
+
             if (Double.IsNaN(factor))
             {
                 Debug.WriteLine("factor = Double.NaN");
             }
             else
             {
-                this.TargetZoom *= factor;
+                TargetZoom *= factor;
             }
         }
 
 
         private void Map_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
-            var currentPoint = e.GetCurrentPoint(this);
+            PointerPoint currentPoint = e.GetCurrentPoint(this);
             bool isLeftButton = currentPoint.Properties.IsLeftButtonPressed;
             if (!isLeftButton) return;
 
-            var now = DateTime.Now;
-            if ((now - this.lastClick) < TimeSpan.FromSeconds(0.2))
+            DateTime now = DateTime.Now;
+            if ((now - _lastClick) < TimeSpan.FromSeconds(0.2))
             {
                 // Double click
-                this.TargetZoom *= 2;
+                TargetZoom *= 2;
 
                 // Inverse position
-                var x = (currentPoint.Position.X - this.ActualWidth / 2)
-                     / this.CurrentZoom / BaseZoom
-                     - this.CurrentPosition.X;
-                var y = (currentPoint.Position.Y - this.ActualHeight / 2)
-                     / this.CurrentZoom / BaseZoom
-                     - this.CurrentPosition.Y;
+                double x = (currentPoint.Position.X - ActualWidth/2)
+                           /CurrentZoom/BaseZoom
+                           - CurrentPosition.X;
+                double y = (currentPoint.Position.Y - ActualHeight/2)
+                           /CurrentZoom/BaseZoom
+                           - CurrentPosition.Y;
 
-                this.MoveToPosition = new Point(-x, -y);
+                MoveToPosition = new Point(-x, -y);
             }
 
-            this.lastClick = now;
+            _lastClick = now;
 
             // Gets position of mouse
-            this.TargetPosition = this.CurrentPosition;
-            this.lastPosition = e.GetCurrentPoint(this).Position;
+            TargetPosition = CurrentPosition;
+            _lastPosition = e.GetCurrentPoint(this).Position;
 
-            this.isMouseDown = true;
+            _isMouseDown = true;
         }
 
         private void Map_PointerReleased(object sender, PointerRoutedEventArgs e)
         {
-            this.lastPosition = e.GetCurrentPoint(this).Position;
-            this.isMouseDown = false;
+            _lastPosition = e.GetCurrentPoint(this).Position;
+            _isMouseDown = false;
         }
 
         private void Map_PointerExited(object sender, PointerRoutedEventArgs pointerRoutedEventArgs)
         {
-            this.isMouseDown = false;
+            _isMouseDown = false;
         }
 
         private void Map_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
-            if (this.isMouseDown)
+            if (_isMouseDown)
             {
-                var position = e.GetCurrentPoint(this).Position;
+                Point position = e.GetCurrentPoint(this).Position;
 
-                if (this.lastPosition.HasValue)
+                if (_lastPosition.HasValue)
                 {
-                    var deltaX = position.X - lastPosition.Value.X;
-                    var deltaY = position.Y - lastPosition.Value.Y;
+                    double deltaX = position.X - _lastPosition.Value.X;
+                    double deltaY = position.Y - _lastPosition.Value.Y;
 
-                    deltaX /= this.CurrentZoom;
-                    deltaY /= this.CurrentZoom;
+                    deltaX /= CurrentZoom;
+                    deltaY /= CurrentZoom;
 
-                    this.TargetPosition =
+                    TargetPosition =
                         new Point(
-                            this.TargetPosition.X + deltaX,
-                            this.TargetPosition.Y + deltaY);
+                            TargetPosition.X + deltaX,
+                            TargetPosition.Y + deltaY);
 
-                    this.UpdateAllTiles();
+                    UpdateAllTiles();
                 }
 
-                this.lastPosition = position;
+                _lastPosition = position;
             }
         }
 
         protected int ConvertZoomToZoomLevel(double zoom)
         {
-            return (int)Math.Round(Math.Log(zoom, 2.0) - 7.9);   
+            return (int) Math.Round(Math.Log(zoom, 2.0) - 7.9);
         }
 
         protected double ConvertZoomLevelToZoom(double zoomlevel)
@@ -568,21 +544,19 @@ namespace OsmMapControlLibrary
             return Math.Pow(2, zoomlevel + 7.9);
         }
 
-        protected bool SuspendRendering { get; set; }
-
         // Public Interface of the Control
 
         public void SetView(double latitude, double longitude, int zoomlevel)
         {
             if (zoomlevel < 0 || zoomlevel > TileInfo.MaxZoom)
-                throw new ArgumentOutOfRangeException("Zoom Level is out of range");
+                throw new ArgumentOutOfRangeException("zoomlevel", @"Zoom Level is out of range");
 
             // Temporarily suspend rendering until all variables are set
             SuspendRendering = true;
 
             TargetZoom = ConvertZoomLevelToZoom(zoomlevel);
             MoveToPosition = OsmHelper.ConvertToTilePosition(-longitude, -latitude, 0);
-            
+
             SuspendRendering = false;
         }
     }

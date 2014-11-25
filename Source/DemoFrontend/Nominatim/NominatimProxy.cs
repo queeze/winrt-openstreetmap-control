@@ -20,18 +20,18 @@ namespace DemoFrontend.Nominatim
         {
             query = Uri.EscapeUriString(query);
 
-            string URL =
+            string url =
                 String.Format(
                     "http://open.mapquestapi.com/nominatim/v1/search?format=xml&q={0}&addressdetails=0&limit={1}&exclude_place_ids=613609",
                     query,
                     15);    // max. results to return, possibly make this configurable
 
             var client = new HttpClient();
-            var response = await client.GetStringAsync(URL);
+            var response = await client.GetStringAsync(url);
 
             var searchresults = XElement.Parse(response);
             var mapped = searchresults.Elements("place")
-                .Select(e => new GeocodeResult()
+                .Select(e => new GeocodeResult
                 {
                     Name = (string)e.Attribute("display_name"),
                     Longitude = MappingHelpers.ConvertDouble((string)e.Attribute("lon")),
@@ -48,14 +48,14 @@ namespace DemoFrontend.Nominatim
         //
         public async Task<GeocodeResult> ReverseGeocode(double latitude, double longitude)
         {
-            string URL =
+            string url =
                 String.Format(
                     "http://open.mapquestapi.com/nominatim/v1/reverse?format=xml&lat={0}&lon={1}",
                     latitude.ToString(CultureInfo.InvariantCulture),
                     longitude.ToString(CultureInfo.InvariantCulture));
 
             var client = new HttpClient();
-            var response = await client.GetStringAsync(URL);
+            var response = await client.GetStringAsync(url);
 
             var searchresults = XElement.Parse(response);
             var resElement = searchresults.Elements("result").FirstOrDefault();
@@ -68,7 +68,7 @@ namespace DemoFrontend.Nominatim
                 if (0 == String.Compare("at", countryCode, StringComparison.OrdinalIgnoreCase))
                 {
                     // Only if City or Town is not available, we will fall back to the actual location name
-                    string locationName = (string)addressElement.Element("city");
+                    var locationName = (string)addressElement.Element("city");
                     if (String.IsNullOrWhiteSpace(locationName))
                     {
                         locationName = (string)addressElement.Element("town");
@@ -79,8 +79,8 @@ namespace DemoFrontend.Nominatim
                         }
                     }
 
-                    var result = new GeocodeResult()
-                                     {
+                    var result = new GeocodeResult
+                    {
                                          Name = locationName,
                                          Latitude = MappingHelpers.ConvertDouble((string) resElement.Attribute("lat")),
                                          Longitude = MappingHelpers.ConvertDouble((string) resElement.Attribute("lon"))

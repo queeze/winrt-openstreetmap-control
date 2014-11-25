@@ -1,19 +1,14 @@
-﻿using System;
-
-namespace OsmMapControlLibrary
+﻿namespace OsmMapControlLibrary
 {
     public class ScrollEnergyManager
     {
-        private const double maxEnergy = 2;
-        private const double rechargeRate = 0.03;
-        private const double requestRate = 0.2;
-        public double CurrentEnergy
-        {
-            get;
-            set;
-        }
+        private const double MaxEnergy = 2;
+        private const double RechargeRate = 0.03;
+        private const double RequestRate = 0.2;
+        public double CurrentEnergy { get; set; }
+
         /// <summary>
-        /// Requests the energy. Not the complete request will be returned
+        ///     Requests the energy. Not the complete request will be returned
         /// </summary>
         /// <param name="requiredEnergy"></param>
         /// <returns></returns>
@@ -21,29 +16,30 @@ namespace OsmMapControlLibrary
         {
             if (requiredEnergy < 0)
             {
-                return -this.RequestEnergy(-requiredEnergy);
+                return -RequestEnergy(-requiredEnergy);
             }
-            var available = this.CurrentEnergy * requestRate;
+            double available = CurrentEnergy*RequestRate;
             if (available < requiredEnergy)
             {
                 requiredEnergy = available;
             }
-            this.CurrentEnergy -= available;
+            CurrentEnergy -= available;
             return available;
         }
+
         /// <summary>
-        /// Recharges the energy (done during every frame)
+        ///     Recharges the energy (done during every frame)
         /// </summary>
         public void Recharge()
         {
-            var diff = maxEnergy - this.CurrentEnergy;
-            diff *= rechargeRate;
-            this.CurrentEnergy += diff;
+            double diff = MaxEnergy - CurrentEnergy;
+            diff *= RechargeRate;
+            CurrentEnergy += diff;
         }
+
         public override string ToString()
         {
-            return string.Format("{0:n2} of {1}", this.CurrentEnergy, maxEnergy);
+            return string.Format("{0:n2} of {1}", CurrentEnergy, MaxEnergy);
         }
     }
 }
-

@@ -1,26 +1,21 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OsmMapControlLibrary.TileProviders
 {
     public class OsmTileProvider : ITileProvider
     {
-        private string FormatUrl(int zoom, int x, int y)
-        {
-            return String.Format("http://tile.openstreetmap.org/{0}/{1}/{2}.png",
-                            zoom.ToString(CultureInfo.InvariantCulture),
-                            x.ToString(CultureInfo.InvariantCulture),
-                            y.ToString(CultureInfo.InvariantCulture));
-        }
-
         public Uri GetTileUri(int zoom, int x, int y)
         {
             return new Uri(FormatUrl(zoom, x, y));
+        }
+
+        private string FormatUrl(int zoom, int x, int y)
+        {
+            return String.Format("http://tile.openstreetmap.org/{0}/{1}/{2}.png",
+                zoom.ToString(CultureInfo.InvariantCulture),
+                x.ToString(CultureInfo.InvariantCulture),
+                y.ToString(CultureInfo.InvariantCulture));
         }
 
         //public async Task<byte[]> LoadTileAsync(int zoom, int x, int y)
